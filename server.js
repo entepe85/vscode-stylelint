@@ -33,6 +33,7 @@ let configOverrides;
 let packageManager;
 let customSyntax;
 let reportNeedlessDisables;
+let reportInvalidScopeDisables;
 let stylelintPath;
 let validateLanguages;
 
@@ -49,6 +50,10 @@ const documents = new TextDocuments(TextDocument);
  * @type {Map<DocumentUri, ({ diagnostic: Diagnostic, range: DisableReportRange })[]>}
  */
 const needlessDisableReports = new Map();
+/**
+ * @type {Map<DocumentUri, ({ diagnostic: Diagnostic, range: DisableReportRange })[]>}
+ */
+const invalidScopeDisableReports = new Map();
 
 /**
  *
@@ -68,6 +73,10 @@ async function buildStylelintOptions(document, baseOptions = {}) {
 
 	if (reportNeedlessDisables) {
 		options.reportNeedlessDisables = reportNeedlessDisables;
+	}
+
+	if (reportInvalidScopeDisables) {
+		options.reportInvalidScopeDisables = reportInvalidScopeDisables;
 	}
 
 	const workspaceFolder = await getWorkspaceFolder(document);
@@ -153,6 +162,7 @@ async function validate(document) {
 		});
 
 		needlessDisableReports.set(document.uri, result.needlessDisables);
+		invalidScopeDisableReports.set(document.uri, result.invalidScopeDisables);
 	} catch (err) {
 		handleError(err);
 	}
@@ -206,6 +216,7 @@ function clearDiagnostics(document) {
 		diagnostics: [],
 	});
 	needlessDisableReports.delete(document.uri);
+	invalidScopeDisableReports.delete(document.uri);
 }
 
 /**
@@ -239,6 +250,7 @@ connection.onDidChangeConfiguration(({ settings }) => {
 	configOverrides = settings.stylelint.configOverrides;
 	customSyntax = settings.stylelint.customSyntax;
 	reportNeedlessDisables = settings.stylelint.reportNeedlessDisables;
+	reportInvalidScopeDisables = settings.stylelint.reportInvalidScopeDisables;
 	stylelintPath = settings.stylelint.stylelintPath;
 	packageManager = settings.stylelint.packageManager || 'npm';
 	validateLanguages = settings.stylelint.validate || [];
@@ -336,7 +348,7 @@ connection.onCodeAction(async (params) => {
 		const textDocumentIdentifer = { uri: textDocument.uri, version: textDocument.version };
 
 		const diagnostics = params.context.diagnostics;
-		const needlessDisables = needlessDisableReports.get(uri);
+		const needlessDisables = needlessDisableReports.get(uri) || invalidScopeDisableReports.get(uri);
 
 		if (!needlessDisables) {
 			return [];
